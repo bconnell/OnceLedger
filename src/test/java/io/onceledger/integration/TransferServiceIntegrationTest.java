@@ -434,6 +434,31 @@ class TransferServiceIntegrationTest {
         assertEquals(0, count("ledger_entries"));
     }
 
+
+    @Test
+    void databaseRejectsContradictorySavedReceiptStates() {
+        String key = "consistent-receipt-001";
+        TransferRequest request = new TransferRequest("operating", "savings", 150L);
+        TransferReceipt receipt = service.submit(key, request);
+        assertEquals(201, receipt.status());
+
+        assertThrows(DataAccessException.class, () -> jdbc.update("""
+                UPDATE idempotency_receipts
+                   SET response_outcome = 'rejected'
+                 WHERE idempotency_key = ?
+                """, key));
+        assertThrows(DataAccessException.class, () -> jdbc.update("""
+                UPDATE idempotency_receipts
+                   SET response_status = 422, response_outcome = 'rejected', response_reason = NULL
+                 WHERE idempotency_key = ?
+                """, key));
+
+        TransferReceipt replay = service.submit(key, request);
+        assertTrue(replay.replayed());
+        assertEquals(receipt.body(), replay.body());
+        assertEquals(2, count("ledger_entries"));
+    }
+
     private long balance(String account) {
         return jdbc.queryForObject("SELECT balance_cents FROM demo_accounts WHERE account_id = ?",
                 Long.class, account);
