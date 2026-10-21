@@ -88,7 +88,7 @@ public final class PublicTextGate {
 
     private static boolean shouldScan(String name) {
         String lower = name.toLowerCase(Locale.ROOT);
-        if (lower.equals(".gitignore")) {
+        if (lower.equals(".gitignore") || lower.equals("license")) {
             return true;
         }
         for (String extension : EXTENSIONS) {
