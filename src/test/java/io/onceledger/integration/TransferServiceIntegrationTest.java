@@ -403,9 +403,9 @@ class TransferServiceIntegrationTest {
                     HAVING COUNT(*) <> 2 OR SUM(delta_cents) <> 0
                 ) AS invalid_entries
                 """, Integer.class);
-        assertEquals(125000L, totalBalance);
-        assertEquals(0L, totalDelta);
-        assertEquals(0, invalidTransfers);
+        assertEquals(125000L, totalBalance.longValue());
+        assertEquals(0L, totalDelta.longValue());
+        assertEquals(0, invalidTransfers.intValue());
         assertEquals(4, count("ledger_entries"));
         assertEquals(2, count("idempotency_receipts"));
     }
