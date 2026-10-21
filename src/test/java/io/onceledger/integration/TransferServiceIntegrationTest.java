@@ -419,6 +419,7 @@ class TransferServiceIntegrationTest {
             "{\"fromAccount\":\"operating\",\"toAccount\":\"savings\",\"amountCents\":null}",
             "{\"fromAccount\":\"operating\",\"toAccount\":\"operating\",\"amountCents\":1}",
             "{\"fromAccount\":\"operating\",\"toAccount\":\"savings\",\"amountCents\":1.5}",
+            "{\"fromAccount\":\"operating\",\"toAccount\":\"savings\",\"amountCents\":\"15\"}",
             "{\"fromAccount\":\"operating\",\"toAccount\":\"savings\",\"amountCents\":1,\"unknown\":true}",
             "{not-json}"
         };
