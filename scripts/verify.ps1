@@ -18,8 +18,10 @@ try {
     }
     & docker info --format '{{.ServerVersion}}' | Out-Null
     if ($LASTEXITCODE -ne 0) { throw 'Docker is not running.' }
+    & docker compose config --quiet
+    if ($LASTEXITCODE -ne 0) { throw 'Docker Compose validation failed.' }
 
-    & mvn -B -ntp clean verify
+    & mvn -B -ntp -T 1 clean verify
     if ($LASTEXITCODE -ne 0) { throw 'Maven validation failed.' }
 
     if (Get-Command git -ErrorAction SilentlyContinue) {
@@ -27,6 +29,13 @@ try {
         if ($LASTEXITCODE -ne 0) { throw 'Git whitespace check failed.' }
         & git diff --cached --check
         if ($LASTEXITCODE -ne 0) { throw 'Staged Git whitespace check failed.' }
+        & git diff --check HEAD~1 HEAD
+        if ($LASTEXITCODE -ne 0) { throw 'Latest commit whitespace check failed.' }
+        & git show-ref --verify --quiet refs/heads/main
+        if ($LASTEXITCODE -eq 0) {
+            & git diff --check 'main...HEAD'
+            if ($LASTEXITCODE -ne 0) { throw 'Branch whitespace check failed.' }
+        }
     }
     Write-Host 'Local build and database integration gates completed.'
 }

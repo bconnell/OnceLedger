@@ -316,6 +316,149 @@ class TransferServiceIntegrationTest {
         assertEquals(2, count("ledger_entries"));
     }
 
+
+    @Test
+    void requestBoundaryValuesAreValidatedBeforeReservingKeys() {
+        assertThrows(InvalidTransferException.class, () ->
+                service.submit("seven77", new TransferRequest("operating", "savings", 1L)));
+        assertThrows(InvalidTransferException.class, () ->
+                service.submit("invalid-negative-amount", new TransferRequest("operating", "savings", -1L)));
+        assertThrows(InvalidTransferException.class, () ->
+                service.submit("invalid-zero-amount", new TransferRequest("operating", "savings", 0L)));
+        assertThrows(InvalidTransferException.class, () ->
+                service.submit("invalid-excess-amount", new TransferRequest("operating", "savings", 10_000_001L)));
+        assertThrows(InvalidTransferException.class, () ->
+                service.submit("invalid-null-amount", new TransferRequest("operating", "savings", null)));
+        assertThrows(InvalidTransferException.class, () ->
+                service.submit("invalid-space-account", new TransferRequest("not valid", "savings", 1L)));
+        assertEquals(0, count("idempotency_receipts"));
+
+        TransferReceipt minimum = service.submit("boundary-minimum", new TransferRequest("operating", "savings", 1L));
+        assertEquals(201, minimum.status());
+        TransferReceipt maximum = service.submit("boundary-maximum",
+                new TransferRequest("operating", "savings", 10_000_000L));
+        assertEquals(422, maximum.status());
+        assertEquals("insufficient_funds", maximum.body().reason());
+        assertEquals(2, count("idempotency_receipts"));
+        assertEquals(2, count("ledger_entries"));
+    }
+
+    @Test
+    void concurrentDifferentRequestsSharingAKeyRejectOneRequest() throws Exception {
+        CountDownLatch release = new CountDownLatch(1);
+        String key = "race-different-body-001";
+        try (var executor = Executors.newFixedThreadPool(2)) {
+            Callable<Object> firstRequest = () -> {
+                release.await();
+                try {
+                    return service.submit(key, new TransferRequest("operating", "savings", 111L));
+                } catch (IdempotencyConflictException exception) {
+                    return exception;
+                }
+            };
+            Callable<Object> secondRequest = () -> {
+                release.await();
+                try {
+                    return service.submit(key, new TransferRequest("operating", "savings", 222L));
+                } catch (IdempotencyConflictException exception) {
+                    return exception;
+                }
+            };
+            Future<Object> first = executor.submit(firstRequest);
+            Future<Object> second = executor.submit(secondRequest);
+            release.countDown();
+            Object firstResult = first.get(25, TimeUnit.SECONDS);
+            Object secondResult = second.get(25, TimeUnit.SECONDS);
+            assertNotEquals(firstResult.getClass(), secondResult.getClass());
+            assertTrue(firstResult instanceof IdempotencyConflictException
+                    || secondResult instanceof IdempotencyConflictException);
+            TransferReceipt winner = firstResult instanceof TransferReceipt
+                    ? (TransferReceipt) firstResult : (TransferReceipt) secondResult;
+            assertEquals(201, winner.status());
+            assertFalse(winner.replayed());
+            assertEquals(winner.body(), service.submit(key, new TransferRequest(
+                    "operating", "savings", winner.body().amountCents())).body());
+            assertEquals(100000L - winner.body().amountCents(), balance("operating"));
+            assertEquals(25000L + winner.body().amountCents(), balance("savings"));
+        }
+        assertEquals(1, count("idempotency_receipts"));
+        assertEquals(2, count("ledger_entries"));
+    }
+
+    @Test
+    void successfulTransfersPreserveLedgerAndBalanceConservation() {
+        service.submit("conservation-first", new TransferRequest("operating", "savings", 750L));
+        service.submit("conservation-second", new TransferRequest("savings", "operating", 200L));
+        service.submit("conservation-first", new TransferRequest("operating", "savings", 750L));
+
+        Long totalBalance = jdbc.queryForObject(
+                "SELECT SUM(balance_cents) FROM demo_accounts", Long.class);
+        Long totalDelta = jdbc.queryForObject(
+                "SELECT SUM(delta_cents) FROM ledger_entries", Long.class);
+        Integer invalidTransfers = jdbc.queryForObject("""
+                SELECT COUNT(*) FROM (
+                    SELECT transfer_id
+                      FROM ledger_entries
+                     GROUP BY transfer_id
+                    HAVING COUNT(*) <> 2 OR SUM(delta_cents) <> 0
+                ) AS invalid_entries
+                """, Integer.class);
+        assertEquals(125000L, totalBalance.longValue());
+        assertEquals(0L, totalDelta.longValue());
+        assertEquals(0, invalidTransfers.intValue());
+        assertEquals(4, count("ledger_entries"));
+        assertEquals(2, count("idempotency_receipts"));
+    }
+
+    @Test
+    void httpValidationDoesNotCreateReceiptsForMalformedTransferBodies() throws Exception {
+        var mvc = MockMvcBuilders.webAppContextSetup(webContext).build();
+        String[] invalidBodies = {
+            "{\"fromAccount\":\"operating\",\"toAccount\":\"savings\",\"amountCents\":0}",
+            "{\"fromAccount\":\"operating\",\"toAccount\":\"savings\",\"amountCents\":10000001}",
+            "{\"fromAccount\":\"operating\",\"toAccount\":\"savings\",\"amountCents\":null}",
+            "{\"fromAccount\":\"operating\",\"toAccount\":\"operating\",\"amountCents\":1}",
+            "{\"fromAccount\":\"operating\",\"toAccount\":\"savings\",\"amountCents\":1.5}",
+            "{\"fromAccount\":\"operating\",\"toAccount\":\"savings\",\"amountCents\":\"15\"}",
+            "{\"fromAccount\":\"operating\",\"toAccount\":\"savings\",\"amountCents\":1,\"unknown\":true}",
+            "{not-json}"
+        };
+        for (String body : invalidBodies) {
+            mvc.perform(post("/api/transfers")
+                    .header("Idempotency-Key", "invalid-body-probe")
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content(body))
+                    .andExpect(status().isBadRequest());
+        }
+        assertEquals(0, count("idempotency_receipts"));
+        assertEquals(0, count("ledger_entries"));
+    }
+
+
+    @Test
+    void databaseRejectsContradictorySavedReceiptStates() {
+        String key = "consistent-receipt-001";
+        TransferRequest request = new TransferRequest("operating", "savings", 150L);
+        TransferReceipt receipt = service.submit(key, request);
+        assertEquals(201, receipt.status());
+
+        assertThrows(DataAccessException.class, () -> jdbc.update("""
+                UPDATE idempotency_receipts
+                   SET response_outcome = 'rejected'
+                 WHERE idempotency_key = ?
+                """, key));
+        assertThrows(DataAccessException.class, () -> jdbc.update("""
+                UPDATE idempotency_receipts
+                   SET response_status = 422, response_outcome = 'rejected', response_reason = NULL
+                 WHERE idempotency_key = ?
+                """, key));
+
+        TransferReceipt replay = service.submit(key, request);
+        assertTrue(replay.replayed());
+        assertEquals(receipt.body(), replay.body());
+        assertEquals(2, count("ledger_entries"));
+    }
+
     private long balance(String account) {
         return jdbc.queryForObject("SELECT balance_cents FROM demo_accounts WHERE account_id = ?",
                 Long.class, account);
