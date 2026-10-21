@@ -26,6 +26,10 @@ Business rejections, such as insufficient credits or an unknown account, are fin
 
 The design covers **database-local side effects only**. It does not claim exactly-once execution across external APIs, email, brokers, or other systems. Distributed effects require a different design, such as a transactional outbox and an idempotent consumer.
 
+## Database receipt invariants
+
+The third Flyway migration adds a state constraint for receipt reservations, successful transfers, and business rejections. Each status must match its outcome, reason, and amount range. The constraint evaluates to a definite true value, so SQL null values cannot bypass the check. It does not enforce the sum of ledger entries across rows; the service performs those writes in one transaction and integration tests inspect their balance.
+
 ## Concurrency and tradeoffs
 
 The account locks are taken in stable order to coordinate competing valid keys. This prevents simultaneously approved transfers from spending the same source balance. PostgreSQL ensures atomic writes and durable receipts. The application intentionally favors clear transactional correctness over maximum throughput, horizontal partitioning, or eventual consistency.
