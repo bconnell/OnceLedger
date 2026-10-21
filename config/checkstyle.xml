@@ -9,6 +9,9 @@
     <module name="LineLength"><property name="max" value="140"/></module>
     <module name="TreeWalker">
         <module name="AvoidStarImport"/>
+        <module name="RedundantImport"/>
+        <module name="UnusedImports"/>
+        <module name="ModifierOrder"/>
         <module name="NeedBraces"/>
     </module>
 </module>
