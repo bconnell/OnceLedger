@@ -5,6 +5,8 @@ server:
     include-stacktrace: never
 spring:
   jackson:
+    mapper:
+      allow-coercion-of-scalars: false
     deserialization:
       accept-float-as-int: false
       fail-on-unknown-properties: true
