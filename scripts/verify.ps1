@@ -29,6 +29,13 @@ try {
         if ($LASTEXITCODE -ne 0) { throw 'Git whitespace check failed.' }
         & git diff --cached --check
         if ($LASTEXITCODE -ne 0) { throw 'Staged Git whitespace check failed.' }
+        & git diff --check HEAD~1 HEAD
+        if ($LASTEXITCODE -ne 0) { throw 'Latest commit whitespace check failed.' }
+        & git show-ref --verify --quiet refs/heads/main
+        if ($LASTEXITCODE -eq 0) {
+            & git diff --check 'main...HEAD'
+            if ($LASTEXITCODE -ne 0) { throw 'Branch whitespace check failed.' }
+        }
     }
     Write-Host 'Local build and database integration gates completed.'
 }
