@@ -1,0 +1,24 @@
+server:
+  address: ${SERVER_ADDRESS:127.0.0.1}
+  error:
+    include-message: never
+    include-stacktrace: never
+spring:
+  application:
+    name: onceledger
+  datasource:
+    url: ${DB_URL:jdbc:postgresql://localhost:5432/onceledger}
+    username: ${DB_USERNAME:onceledger}
+    password: ${DB_PASSWORD:onceledger_local_only}
+    hikari:
+      maximum-pool-size: 6
+  flyway:
+    enabled: true
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+  endpoint:
+    health:
+      show-details: never
