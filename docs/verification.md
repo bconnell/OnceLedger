@@ -45,6 +45,7 @@ The integration suite includes:
 | Missing account or insufficient credits | A saved, replayable rejection |
 | Invalid request amount or account identifier | HTTP 400 and no receipt |
 | Successful opposite-direction transfers | Two entries per transfer; total balances and ledger deltas conserved |
+| Corrupted persisted receipt attempt | The database rejects contradictory status, outcome, and rejection reason values |
 
 The test cases exercise these conditions, but their presence is not evidence of a passing test run.
 
