@@ -32,7 +32,7 @@ docker compose up -d postgres
 mvn spring-boot:run
 ```
 
-Then open `http://127.0.0.1:8080/`. Flyway creates the tables and seeds `operating` with 100,000 credits and `savings` with 25,000 credits (values stored in cents). The service binds to loopback by default.
+Then open `http://127.0.0.1:8080/`. Flyway creates the tables and seeds `operating` with 100,000 cents of demo credit and `savings` with 25,000 cents. The amounts are integers, not currency. The service binds to loopback by default.
 
 On Windows, these same commands work from PowerShell when Docker Desktop, Maven, and Java are available on `PATH`.
 
@@ -113,7 +113,9 @@ sh scripts/verify.sh
 
 Both scripts fail if Docker is unavailable or if Maven verification fails. They run the public-text audit, a Java syntax-only preflight, a clean Maven build with Java compiler warnings treated as errors, unit tests, Testcontainers PostgreSQL integration tests, and Git whitespace checks. A locally installed Docker daemon is necessary for the integration tests.
 
-Tests cover same-key retries, different-body conflicts, immutable rejection receipts, restart-equivalent replay, simultaneous duplicate requests, competing balance changes, opposite-direction transfers, injected database failures, and HTTP request validation. A test is only considered passed after `mvn clean verify` completes successfully in the actual environment.
+The tests cover same-key retries, different-body conflicts, immutable rejection receipts, replay from a new service instance, simultaneous duplicate requests, concurrent conflicting payloads, competing balance changes, ledger conservation, opposite-direction transfers, injected database failures, amount limits, and HTTP request validation. The existence of a test is not evidence that it passed.
+
+**Verification status:** A complete Maven and PostgreSQL integration test run has not yet been recorded for this revision. No genuine running-application screenshot has been captured. See [Verification](docs/verification.md) for the executable checks, their expected results, and the evidence needed before a verified release.
 
 ## Design boundaries
 
