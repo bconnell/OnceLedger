@@ -111,7 +111,7 @@ If a client loses a connection after the database commits, retrying with the sam
 sh scripts/verify.sh
 ```
 
-Both scripts fail if Docker is unavailable or if Maven verification fails. They run the public-text audit, a clean Maven build with Java compiler warnings treated as errors, unit tests, Testcontainers PostgreSQL integration tests, and Git whitespace checks. A locally installed Docker daemon is necessary for the integration tests.
+Both scripts fail if Docker is unavailable or if Maven verification fails. They run the public-text audit, a Java syntax-only preflight, a clean Maven build with Java compiler warnings treated as errors, unit tests, Testcontainers PostgreSQL integration tests, and Git whitespace checks. A locally installed Docker daemon is necessary for the integration tests.
 
 Tests cover same-key retries, different-body conflicts, immutable rejection receipts, restart-equivalent replay, simultaneous duplicate requests, competing balance changes, opposite-direction transfers, injected database failures, and HTTP request validation. A test is only considered passed after `mvn clean verify` completes successfully in the actual environment.
 

@@ -4,6 +4,12 @@ Set-StrictMode -Version Latest
 $repository = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
 Push-Location $repository
 try {
+    & (Join-Path $PSScriptRoot 'audit-public-text.ps1')
+    if (-not (Get-Command java -ErrorAction SilentlyContinue)) {
+        throw 'JDK 21 is required on PATH.'
+    }
+    & java (Join-Path $PSScriptRoot 'JavaSyntaxGate.java')
+    if ($LASTEXITCODE -ne 0) { throw 'Java syntax gate failed.' }
     if (-not (Get-Command mvn -ErrorAction SilentlyContinue)) {
         throw 'Maven 3.9+ is required on PATH.'
     }
@@ -12,9 +18,6 @@ try {
     }
     & docker info --format '{{.ServerVersion}}' | Out-Null
     if ($LASTEXITCODE -ne 0) { throw 'Docker is not running.' }
-
-    & (Join-Path $PSScriptRoot 'audit-public-text.ps1')
-    if ($LASTEXITCODE -and $LASTEXITCODE -ne 0) { throw 'Public-text audit failed.' }
 
     & mvn -B -ntp clean verify
     if ($LASTEXITCODE -ne 0) { throw 'Maven validation failed.' }
