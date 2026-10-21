@@ -18,8 +18,10 @@ try {
     }
     & docker info --format '{{.ServerVersion}}' | Out-Null
     if ($LASTEXITCODE -ne 0) { throw 'Docker is not running.' }
+    & docker compose config --quiet
+    if ($LASTEXITCODE -ne 0) { throw 'Docker Compose validation failed.' }
 
-    & mvn -B -ntp clean verify
+    & mvn -B -ntp -T 1 clean verify
     if ($LASTEXITCODE -ne 0) { throw 'Maven validation failed.' }
 
     if (Get-Command git -ErrorAction SilentlyContinue) {
